@@ -12,6 +12,8 @@
 
 // CHANGELOG
 // (minor and older changes stripped away, please see git history for details)
+//  2019-05-18: Misc: Removed clipboard handlers as they are now supported by core imgui.cpp.
+//  2019-05-11: Inputs: Don't filter character values before calling AddInputCharacter() apart from 0xF700..0xFFFF range.
 //  2018-11-30: Misc: Setting up io.BackendPlatformName so it can be displayed in the About Window.
 //  2018-07-07: Initial version.
 
@@ -53,33 +55,10 @@ bool ImGui_ImplOSX_Init()
     io.KeyMap[ImGuiKey_X]           = 'X';
     io.KeyMap[ImGuiKey_Y]           = 'Y';
     io.KeyMap[ImGuiKey_Z]           = 'Z';
-    
-    io.SetClipboardTextFn = [](void*, const char* str) -> void
-    {
-        NSPasteboard* pasteboard = [NSPasteboard generalPasteboard];
-        [pasteboard declareTypes:[NSArray arrayWithObject:NSPasteboardTypeString] owner:nil];
-        [pasteboard setString:[NSString stringWithUTF8String:str] forType:NSPasteboardTypeString];
-    };
-    
-    io.GetClipboardTextFn = [](void*) -> const char*
-    {
-        NSPasteboard* pasteboard = [NSPasteboard generalPasteboard];
-        NSString* available = [pasteboard availableTypeFromArray: [NSArray arrayWithObject:NSPasteboardTypeString]];
-        if (![available isEqualToString:NSPasteboardTypeString])
-            return NULL;
 
-        NSString* string = [pasteboard stringForType:NSPasteboardTypeString];
-        if (string == nil)
-            return NULL;
-            
-        const char* string_c = (const char*)[string UTF8String];
-        size_t string_len = strlen(string_c);
-        static ImVector<char> s_clipboard;
-        s_clipboard.resize((int)string_len + 1);
-        strcpy(s_clipboard.Data, string_c);
-        return s_clipboard.Data;
-    };
-    
+    // We don't set the io.SetClipboardTextFn/io.GetClipboardTextFn handlers,
+    // because imgui.cpp has a default for them that works with OSX.
+
     return true;
 }
 
@@ -189,8 +168,8 @@ bool ImGui_ImplOSX_HandleEvent(NSEvent* event, NSView* view)
         for (int i = 0; i < len; i++)
         {
             int c = [str characterAtIndex:i];
-            if (c < 0xF700 && !io.KeyCtrl)
-                io.AddInputCharacter((unsigned short)c);
+            if (!io.KeyCtrl && !(c >= 0xF700 && c <= 0xFFFF))
+                io.AddInputCharacter((unsigned int)c);
 
             // We must reset in case we're pressing a sequence of special keys while keeping the command pressed
             int key = mapCharacterToKey(c);
@@ -235,6 +214,6 @@ bool ImGui_ImplOSX_HandleEvent(NSEvent* event, NSView* view)
             resetKeys();
         return io.WantCaptureKeyboard;
     }
-    
+
     return false;
 }
